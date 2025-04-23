@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat Interface</title>
+  <link rel="stylesheet" href="message.css" />
+</head>
+<body>
+  <div class="chat-container">
+    <aside class="user-list">
+      <h3>Users</h3>
+      <ul id="users"></ul>
+    </aside>
+    <main class="chat-area">
+      <header id="chat-header">Select a user to chat</header>
+      <section id="chat-history"></section>
+      <footer>
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button id="sendBtn">Send</button>
+      </footer>
+    </main>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="message.js"></script>
+</body>
+</html>

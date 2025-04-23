@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sarthi - Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <style>
+    .button {
+        display: inline-block;
+        padding: 15px 35px;
+        font-size: 1.2em;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #fff;
+        background: linear-gradient(45deg, #ff416c, #ff4b2b);
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        transition: all 0.3s ease-in-out;
+        box-shadow: 0 5px 15px rgba(255, 75, 43, 0.4);
+        text-decoration: none; 
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .button::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 300%;
+        height: 300%;
+        background: rgba(255, 255, 255, 0.2);
+        transition: all 0.5s ease-in-out;
+        border-radius: 50%;
+        transform: translate(-50%, -50%) scale(0);
+      }
+      
+      .button:hover::before {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0;
+      }
+      
+      .button:hover {
+        background: linear-gradient(45deg, #ff4b2b, #ff416c);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(255, 75, 43, 0.6);
+      }
+      
+      .button:active {
+        transform: translateY(2px);
+        box-shadow: 0 3px 10px rgba(255, 75, 43, 0.5);
+      }
+      </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo-title">
+                <img class="imo" src="logo.png" alt="Sarthi Logo">
+                <h1 class="main-title">Dashboard</h1>
+            </div>
+            <nav class="menu-bar">
+                <ul>
+                    <li><a href="#profile"><i class="fas fa-user"></i> Profile</a></li>
+                    <li><a href="#notifications"><i class="fas fa-bell"></i> Notifications</a></li>
+                    <li><a href="#settings"><i class="fas fa-cog"></i> Settings</a></li>
+                    <li><a href="#logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <section class="dashboard-section">
+        <div class="sidebar">
+            <div class="user-info">
+                <img src="avatar.png" alt="User Avatar" class="avatar">
+                <h3>Welcome, User</h3>
+            </div>
+            <nav class="sidebar-menu">
+                <ul>
+                    <li><a href="#dashboard" class="active"><i class="fas fa-home"></i> Dashboard</a></li>
+                    <li><a href="#counselor"><i class="fas fa-user-tie"></i> Find Counselor</a></li>
+                    <li><a href="#assessment"><i class="fas fa-clipboard-check"></i> Self Assessment</a></li>
+                    <li><a href="message.html"><i class="fas fa-envelope"></i> Messages</a></li>
+                    <li><a href="#calendar"><i class="fas fa-calendar"></i> Calendar</a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <div class="main-content">
+            <div class="search-section">
+                <div class="search-container">
+                    <input type="text" id="counselorSearch" placeholder="Search counselors by stream (e.g., Science, Commerce, Medical)">
+                    <button class="search-btn" onclick="searchCounselor()"><i class="fas fa-search"></i> Search</button>
+                </div>
+            </div>
+
+            <div class="counselor-results" id="counselorResults">
+                <!-- Counselor results will be displayed here -->
+            </div>
+
+            <div class="stats-cards">
+                <div class="card" onclick="showAllCounselors()" style="cursor: pointer;">
+                    <i class="fas fa-user-tie"></i>
+                    <h3>Available Counselors</h3>
+                    <p id="counselorCount">0 Online</p>
+                </div>
+                
+                <div class="card">
+                    <i class="fas fa-tasks"></i>
+                    <h3>Assessments</h3>
+                    <p>2 Pending</p>
+                </div>
+                <div class="card">
+                    <i class="fas fa-certificate"></i>
+                    <h3>Career Paths</h3>
+                    <p>15+ Options</p>
+                </div>
+            </div>
+
+            <div class="assessment-section">
+                <h2>Self Assessment Tests</h2>
+                <div class="test-list">
+                    <div class="test-item">
+                        <div class="test-info">
+                            <h4>Career Aptitude Test</h4>
+                            <p>Discover your career strengths and interests</p>
+                            <span>45 minutes</span>
+                        </div>
+                        <div class="aptitude-test-action"></div>
+                    </div>
+                    <div class="test-item">
+                        <div class="test-info">
+                            <h4>Stream Selection Test</h4>
+                            <p>Find your ideal academic stream</p>
+                            <span>30 minutes</span>
+                        </div>
+                        <button class="start-test" onclick="startTest('stream')">Start Test</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="career-paths-section">
+                <h2>Recommended Career Paths</h2>
+                <div class="career-grid">
+                    <div class="career-card">
+                        <i class="fas fa-laptop-code"></i>
+                        <h4>Technology</h4>
+                        <p>Software Development, AI, Data Science</p>
+                        <button onclick="exploreCareer('tech')">Explore</button>
+                    </div>
+                    <div class="career-card">
+                        <i class="fas fa-heartbeat"></i>
+                        <h4>Healthcare</h4>
+                        <p>Medicine, Nursing, Pharmacy</p>
+                        <button onclick="exploreCareer('healthcare')">Explore</button>
+                    </div>
+                    <div class="career-card">
+                        <i class="fas fa-chart-line"></i>
+                        <h4>Business</h4>
+                        <p>Finance, Marketing, Management</p>
+                        <button onclick="exploreCareer('business')">Explore</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="student-dash.js"></script>
+</body>
+</html>

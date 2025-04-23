@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sarthi - Counselor Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"/>
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <div class="logo-title">
+        <img class="imo" src="logo.png" alt="Sarthi Logo"/>
+        <h1 class="main-title">Counselor Dashboard</h1>
+      </div>
+      <nav class="menu-bar">
+        <ul>
+          <li><a href="#" onclick="showSection('profile')"><i class="fas fa-user-circle"></i> My Profile</a></li>
+          <li><a href="#" onclick="showSection('notifications')"><i class="fas fa-bell"></i> Notifications</a></li>
+          <li><a href="#settings"><i class="fas fa-cog"></i> Settings</a></li>
+          <li><a href="#logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <section class="dashboard-section">
+    <div class="sidebar">
+      <div class="user-info">
+        <img src="counselor-avatar.png" alt="Counselor Avatar" class="avatar"/>
+        <h2>Welcome, <span id="welcomeName">Counselor</span></h2>
+        <p class="specialization">Career Specialist</p>
+      </div>
+      <nav class="sidebar-menu">
+        <ul>
+          <li><a href="counselor_dashboard.html" class="active"><i class="fas fa-home"></i> Dashboard</a></li>
+          <li><a href="#" onclick="showSection('appointments')"><i class="fas fa-calendar-check"></i> Appointments</a></li>
+          <li><a href="#" onclick="showSection('students')"><i class="fas fa-users"></i> My Students</a></li>
+          <li><a href="#" onclick="showSection('messages')"><i class="fas fa-clipboard-list"></i> Message</a></li>
+          <li><a href="#" onclick="showSection('reviews')"><i class="fas fa-chart-bar"></i> Reports</a></li>
+        </ul>
+      </nav>
+    </div>
+
+    <div class="main-content">
+      <section class="profile-section section">
+        <h2>My Profile</h2>
+        <form id="counselorProfileForm">
+          <label>Specialization:</label>
+          <input type="text" id="specialization" required><br/>
+          <label>Experience:</label>
+          <input type="text" id="experience" required><br/>
+          <label>Bio:</label>
+          <textarea id="bio" required></textarea><br/>
+          <button type="submit">Save Profile</button>
+        </form>
+        <div id="noProfileMessage" class="no-profile" style="display: none; text-align: center; padding: 20px;">
+          <p>You haven't created your profile yet.</p>
+          <button onclick="showProfileForm()" class="start-session">Create My Profile</button>
+        </div>
+      </section>
+
+      <div class="messages-section section" style="display: none;">
+        <h2>Messages</h2>
+        <div id="messageList"></div>
+      </div>
+
+      <div class="upcoming-sessions section" style="display: none;">
+        <h2>Today's Appointments</h2>
+        <div id="acceptedContainer"></div>
+      </div>
+
+      <div class="meeting-requests section" style="display: none;">
+        <h2>Meeting Requests</h2>
+        <div id="requestsContainer"></div>
+      </div>
+
+      <div class="assessment-review section" style="display: none;">
+        <h2>Pending Assessments Review</h2>
+        <div class="assessment-list">
+          <div class="assessment-item">
+            <div class="student-info">
+              <h4>Career Aptitude Test Results</h4>
+              <p>Student: Michael Brown</p>
+            </div>
+            <button onclick="reviewAssessment('apt1')">Review</button>
+          </div>
+          <div class="assessment-item">
+            <div class="student-info">
+              <h4>Stream Selection Test Results</h4>
+              <p>Student: Sarah Wilson</p>
+            </div>
+            <button onclick="reviewAssessment('str1')">Review</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="notifications-section section" style="display: none;">
+        <h2>Notifications</h2>
+        <div id="notificationList" class="notification-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const userId = localStorage.getItem('userId');
+    const counselorName = localStorage.getItem('userName');
+    if (counselorName) {
+      document.getElementById('welcomeName').textContent = counselorName;
+    }
+
+    function showProfileForm() {
+      document.getElementById('noProfileMessage').style.display = 'none';
+      document.querySelector('.profile-section').style.display = 'block';
+    }
+
+    function showSection(sectionId) {
+      const sections = document.querySelectorAll('.section');
+      sections.forEach(sec => sec.style.display = 'none');
+      const activeSection = document.querySelector(`.${sectionId}-section`);
+      if (activeSection) activeSection.style.display = 'block';
+      if (sectionId === 'notifications') loadNotifications();
+      if (sectionId === 'messages') loadMessages();
+    }
+
+    function loadMessages() {
+      const container = document.getElementById('messageList');
+      container.innerHTML = '<p>Loading messages...</p>';
+      fetch(`/api/messages/counselor/${userId}`)
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          container.innerHTML = '';
+          if (!data || data.length === 0) {
+            container.innerHTML = '<p>No messages yet.</p>';
+            return;
+          }
+          data.forEach(msg => {
+            const item = document.createElement('div');
+            item.className = 'message-item';
+            item.innerHTML = `
+              <div class="message-header">
+                <strong>${msg.sender_id === userId ? "You" : "Student"}</strong>
+                <span class="time">${msg.timestamp}</span>
+              </div>
+              <div class="message-body">
+                <p>${msg.message}</p>
+              </div>`;
+            container.appendChild(item);
+          });
+        })
+        .catch(err => {
+          console.error("Message load error:", err);
+          container.innerHTML = '<p>Error loading messages.</p>';
+        });
+    }
+
+    function loadNotifications() {
+      const container = document.getElementById('notificationList');
+      container.innerHTML = '<p>Loading...</p>';
+      fetch(`/api/meetings/counselor/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          container.innerHTML = '';
+          const pending = data.meetings.filter(m => m.status === 'pending');
+          if (pending.length === 0) {
+            container.innerHTML = '<p>No new notifications.</p>';
+            return;
+          }
+          pending.forEach(req => {
+            const item = document.createElement('div');
+            item.className = 'session-item';
+            item.innerHTML = `
+              <div class="session-info">
+                <h4>${req.message}</h4>
+                <p><strong>Student:</strong> ${req.student_name}</p>
+                <span>${req.date_time}</span>
+              </div>`;
+            const acceptBtn = document.createElement('button');
+            acceptBtn.textContent = 'Accept';
+            acceptBtn.className = 'start-session';
+            acceptBtn.onclick = () => respondToMeeting(req.id, 'accepted');
+
+            const denyBtn = document.createElement('button');
+            denyBtn.textContent = 'Deny';
+            denyBtn.style.marginLeft = '10px';
+            denyBtn.onclick = () => respondToMeeting(req.id, 'denied');
+
+            item.appendChild(acceptBtn);
+            item.appendChild(denyBtn);
+            container.appendChild(item);
+          });
+        });
+    }
+
+    function respondToMeeting(meetingId, status) {
+      fetch('/api/meetings/respond', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meetingId, status })
+      })
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message);
+          location.reload();
+        });
+    }
+
+    function startSession(sessionId) {
+      window.location.href = `session-room.html?id=${sessionId}`;
+    }
+
+    function reviewAssessment(assessmentId) {
+      window.location.href = `assessment-review.html?id=${assessmentId}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      fetch(`/api/counselor/profile/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.profile) {
+            document.getElementById('specialization').value = data.profile.specialization || '';
+            document.getElementById('experience').value = data.profile.experience || '';
+            document.getElementById('bio').value = data.profile.bio || '';
+            document.querySelector('.profile-section').style.display = 'block';
+          } else {
+            document.getElementById('noProfileMessage').style.display = 'block';
+            document.querySelector('.profile-section').style.display = 'none';
+          }
+        });
+
+      document.getElementById('counselorProfileForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const specialization = document.getElementById('specialization').value;
+        const experience = document.getElementById('experience').value;
+        const bio = document.getElementById('bio').value;
+
+        fetch(`/api/counselor/profile/${userId}`)
+          .then(res => res.json())
+          .then(data => {
+            const exists = data.success && data.profile;
+            const url = exists
+              ? `/api/counselor/profile/${userId}`
+              : '/api/counselor/profile';
+            const method = exists ? 'PUT' : 'POST';
+
+            fetch(url, {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId, specialization, experience, bio })
+            })
+              .then(res => res.json())
+              .then(data => alert(data.message))
+              .catch(err => {
+                console.error(err);
+                alert('Profile submission failed.');
+              });
+          })
+          .catch(err => {
+            console.error(err);
+            alert('Error checking existing profile.');
+          });
+      });
+
+      // Initial data load
+      fetch(`/api/meetings/counselor/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          const reqDiv = document.getElementById('requestsContainer');
+          const acceptedDiv = document.getElementById('acceptedContainer');
+          reqDiv.innerHTML = '';
+          acceptedDiv.innerHTML = '';
+
+          data.meetings.forEach(req => {
+            const item = document.createElement('div');
+            item.className = 'session-item';
+            item.innerHTML = `
+              <div class="session-info">
+                <h4>${req.message}</h4>
+                <p>Student: ${req.student_name}</p>
+                <span>${req.date_time}</span>
+              </div>`;
+
+            if (req.status === 'pending') {
+              const acceptBtn = document.createElement('button');
+              acceptBtn.textContent = 'Accept';
+              acceptBtn.onclick = () => respondToMeeting(req.id, 'accepted');
+
+              const denyBtn = document.createElement('button');
+              denyBtn.textContent = 'Deny';
+              denyBtn.onclick = () => respondToMeeting(req.id, 'denied');
+
+              item.appendChild(acceptBtn);
+              item.appendChild(denyBtn);
+              reqDiv.appendChild(item);
+            } else if (req.status === 'accepted') {
+              const btn = document.createElement('button');
+              btn.className = 'start-session';
+              btn.textContent = 'Start Session';
+              btn.onclick = () => startSession(req.id);
+              item.appendChild(btn);
+              acceptedDiv.appendChild(item);
+            }
+          });
+        });
+    });
+  </script>
+</body>
+</html>
+
