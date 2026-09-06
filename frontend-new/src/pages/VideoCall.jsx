@@ -35,6 +35,7 @@ const VideoCall = () => {
   const [peerConnected, setPeerConnected] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -49,10 +50,99 @@ const VideoCall = () => {
     }
     setLocalStream(null);
     setRemoteStream(null);
+    setCameraError(null);
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
     }
+  }, []);
+
+  // Robust media stream acquisition with laptop/desktop device selection
+  const initMediaStream = useCallback(async () => {
+    setCameraError(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('Camera API not supported in this browser.');
+        return null;
+      }
+
+      // Enumerate devices to pick a true RGB webcam (filtering out Windows Hello IR sensors)
+      let preferredDeviceId = null;
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+        const rgbCamera = videoInputs.find(
+          (d) => !d.label.toLowerCase().includes('ir') && !d.label.toLowerCase().includes('virtual')
+        );
+        if (rgbCamera && rgbCamera.deviceId) {
+          preferredDeviceId = rgbCamera.deviceId;
+        }
+      } catch (devErr) {
+        console.warn('Webcam device enumeration note:', devErr);
+      }
+
+      let stream = null;
+
+      // Attempt 1: Combined video + audio
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : true,
+          audio: true,
+        });
+      } catch (err1) {
+        console.warn('Combined stream failed, trying video only:', err1);
+        // Attempt 2: Video only (in case audio device is busy or blocked)
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+
+          // Attempt to add microphone track in background
+          try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStream.getAudioTracks().forEach((track) => stream.addTrack(track));
+          } catch (audioErr) {
+            console.warn('Microphone track could not be added:', audioErr);
+          }
+        } catch (err2) {
+          console.error('All camera requests failed:', err2);
+          if (err2.name === 'NotAllowedError' || err2.name === 'PermissionDeniedError') {
+            setCameraError('Camera permission blocked. Click the camera icon in your browser address bar to allow.');
+          } else if (err2.name === 'NotReadableError' || err2.name === 'TrackStartError') {
+            setCameraError('Camera is in use by another app (Zoom, Teams, etc.). Close other apps and click Retry.');
+          } else if (err2.name === 'NotFoundError' || err2.name === 'DevicesNotFoundError') {
+            setCameraError('No webcam detected on your laptop.');
+          } else {
+            setCameraError(`Camera error (${err2.name || 'Hardware unavailable'}). Check Windows Camera privacy settings.`);
+          }
+          return null;
+        }
+      }
+
+      if (stream) {
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        setCameraError(null);
+
+        // If peer connection already exists, feed the new tracks
+        if (pcRef.current) {
+          stream.getTracks().forEach((track) => {
+            const sender = pcRef.current.getSenders().find((s) => s.track && s.track.kind === track.kind);
+            if (sender) {
+              sender.replaceTrack(track);
+            } else {
+              pcRef.current.addTrack(track, stream);
+            }
+          });
+        }
+        return stream;
+      }
+    } catch (generalErr) {
+      console.error('General media acquisition error:', generalErr);
+      setCameraError('Unable to start webcam.');
+    }
+    return null;
   }, []);
 
   // Fetch meeting room data & setup media
@@ -65,34 +155,8 @@ const VideoCall = () => {
         if (!isMounted) return;
         setMeetingData(roomData);
 
-        // Get user camera & microphone
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: 'user',
-            },
-            audio: true,
-          });
-          if (!isMounted) return;
-          localStreamRef.current = stream;
-          setLocalStream(stream);
-        } catch (mediaErr) {
-          console.warn('HD camera failed, falling back to default:', mediaErr);
-          try {
-            const fallbackStream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: true,
-            });
-            if (!isMounted) return;
-            localStreamRef.current = fallbackStream;
-            setLocalStream(fallbackStream);
-          } catch (fallbackErr) {
-            console.error('Camera/mic access error:', fallbackErr);
-            toast.error('Unable to access camera or microphone. Please check browser permissions.');
-          }
-        }
+        // Acquire webcam and microphone
+        await initMediaStream();
 
         // Join room in socket
         if (socket && roomData.roomId) {
@@ -113,16 +177,24 @@ const VideoCall = () => {
       isMounted = false;
       cleanup();
     };
-  }, [meetingId, socket, navigate, user, cleanup]);
+  }, [meetingId, socket, navigate, user, cleanup, initMediaStream]);
 
   // Synchronize local video element whenever stream is acquired or component finishes loading
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      if (localVideoRef.current.srcObject !== localStream) {
-        localVideoRef.current.srcObject = localStream;
+      const video = localVideoRef.current;
+      if (video.srcObject !== localStream) {
+        video.srcObject = localStream;
       }
-      localVideoRef.current.muted = true;
-      localVideoRef.current.play().catch((err) => {
+      video.muted = true;
+      video.defaultMuted = true;
+      video.onloadedmetadata = () => {
+        video.muted = true;
+        video.play().catch((err) => {
+          console.warn('Local video play warning on metadata:', err);
+        });
+      };
+      video.play().catch((err) => {
         console.warn('Local video auto-play warning:', err);
       });
     }
@@ -461,10 +533,10 @@ const VideoCall = () => {
                 height: '100%',
                 objectFit: 'cover',
                 transform: 'scaleX(-1)', // mirror selfie video
-                display: isVideoOff ? 'none' : 'block',
+                display: isVideoOff || cameraError ? 'none' : 'block',
               }}
             />
-            {isVideoOff && (
+            {isVideoOff && !cameraError && (
               <div
                 style={{
                   width: '100%',
@@ -479,6 +551,45 @@ const VideoCall = () => {
                 Camera Off
               </div>
             )}
+            {cameraError && (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  padding: 'var(--space-2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  background: 'rgba(235, 77, 75, 0.1)',
+                  color: '#ff6b6b',
+                  fontSize: '10px',
+                  lineHeight: 1.3,
+                }}
+              >
+                <AlertCircle size={16} style={{ marginBottom: 4 }} />
+                <span>{cameraError}</span>
+                <button
+                  onClick={initMediaStream}
+                  style={{
+                    marginTop: 6,
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid #ff6b6b',
+                    background: 'rgba(255, 107, 107, 0.2)',
+                    color: '#fff',
+                    fontSize: '10px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <RefreshCw size={10} /> Retry Camera
+                </button>
+              </div>
+            )}
             <div
               style={{
                 position: 'absolute',
@@ -490,7 +601,7 @@ const VideoCall = () => {
                 borderRadius: '4px',
               }}
             >
-              You ({isMuted ? 'Muted' : 'Mic on'})
+              You ({cameraError ? 'Camera issue' : isMuted ? 'Muted' : 'Mic on'})
             </div>
           </div>
         </div>
