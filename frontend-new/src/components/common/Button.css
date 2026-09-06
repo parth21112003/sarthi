@@ -2,8 +2,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-inter);
-  font-weight: 500;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
   cursor: pointer;
@@ -18,22 +19,29 @@
 
 /* Variants */
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary-dark), var(--primary-light));
-  color: white;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-weight: 700;
+  border: 1px solid var(--btn-border);
+  box-shadow: var(--btn-shadow);
 }
 .btn-primary:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+  transform: translateY(-1px);
+  background: var(--btn-hover);
+  color: var(--btn-text);
+  box-shadow: var(--btn-shadow);
 }
 
 .btn-secondary {
-  background: transparent;
+  background: var(--glass-bg);
   border-color: var(--glass-border);
   color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 .btn-secondary:not(:disabled):hover {
-  background: var(--glass-bg);
-  border-color: var(--primary-light);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
 .btn-ghost {

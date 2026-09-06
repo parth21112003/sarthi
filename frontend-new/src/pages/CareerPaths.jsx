@@ -72,10 +72,10 @@ const CareerPaths = () => {
                   style={{
                     padding: 'var(--space-4)',
                     borderRadius: 'var(--radius-md)',
-                    border: isSelected ? '1px solid var(--primary-light)' : '1px solid var(--glass-border)',
+                    border: isSelected ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
                     background: isSelected
-                      ? 'linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(255,255,255,0.03))'
-                      : 'rgba(255, 255, 255, 0.02)',
+                      ? 'var(--glass-border-hover)'
+                      : 'var(--glass-bg)',
                     cursor: 'pointer',
                     transition: 'all var(--transition-fast)',
                     display: 'flex',

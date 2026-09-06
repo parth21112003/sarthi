@@ -176,8 +176,8 @@ const Notifications = () => {
                   style={{
                     padding: 'var(--space-3) var(--space-4)',
                     borderRadius: 'var(--radius-md)',
-                    background: n.isRead ? 'rgba(255,255,255,0.02)' : 'rgba(108, 92, 231, 0.12)',
-                    border: n.isRead ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(162, 155, 254, 0.3)',
+                    background: n.isRead ? 'transparent' : 'var(--glass-bg)',
+                    border: n.isRead ? '1px solid var(--glass-border)' : '1px solid var(--glass-border-hover)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',

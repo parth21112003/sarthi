@@ -14,7 +14,7 @@
 
 .dashboard-header {
   height: 70px;
-  background: rgba(10, 10, 26, 0.8);
+  background: var(--nav-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--glass-border);
   display: flex;

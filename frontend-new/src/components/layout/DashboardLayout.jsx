@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from '../notifications/NotificationBell';
+import ThemeToggle from '../common/ThemeToggle';
 import AiChatWidget from '../ai/AiChatWidget';
 import './DashboardLayout.css';
 
@@ -26,6 +27,7 @@ const DashboardLayout = ({ children, title }) => {
           </div>
           
           <div className="header-right">
+            <ThemeToggle />
             <NotificationBell />
             <Link to={`/${user?.role || 'student'}/profile`} className="header-user-profile" title="View Profile">
               <Avatar name={user?.name || user?.email} size="sm" isOnline={true} />

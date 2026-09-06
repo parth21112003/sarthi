@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   height: 70px;
-  background: rgba(10, 10, 26, 0.8);
+  background: var(--nav-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--glass-border);
   z-index: 100;
@@ -40,7 +40,7 @@
 .logo-text {
   font-size: var(--text-xl);
   font-weight: 700;
-  background: linear-gradient(135deg, white, var(--text-muted));
+  background: linear-gradient(135deg, var(--text-cream), var(--text-muted));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

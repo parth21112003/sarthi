@@ -214,8 +214,8 @@ const AptitudeTest = () => {
                           style={{
                             padding: 'var(--space-4)',
                             borderRadius: 'var(--radius-md)',
-                            border: isChosen ? '1px solid var(--primary-light)' : '1px solid var(--glass-border)',
-                            background: isChosen ? 'rgba(108, 92, 231, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                            border: isChosen ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
+                            background: isChosen ? 'var(--glass-border-hover)' : 'var(--glass-bg)',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 'var(--space-3)',
@@ -303,8 +303,8 @@ const AptitudeTest = () => {
                       style={{
                         padding: 'var(--space-4)',
                         borderRadius: 'var(--radius-md)',
-                        background: idx === 0 ? 'linear-gradient(135deg, rgba(108, 92, 231, 0.15), rgba(0,0,0,0.2))' : 'rgba(255, 255, 255, 0.02)',
-                        border: idx === 0 ? '1px solid var(--primary-light)' : '1px solid var(--glass-border)',
+                        background: idx === 0 ? 'var(--card-bg)' : 'var(--glass-bg)',
+                        border: idx === 0 ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
@@ -378,8 +378,8 @@ const AptitudeTest = () => {
                           <div style={{
                             padding: 'var(--space-4)',
                             borderRadius: 'var(--radius-md)',
-                            background: 'linear-gradient(135deg, rgba(108, 92, 231, 0.25), rgba(0, 206, 201, 0.15))',
-                            border: '1px solid var(--primary-light)',
+                            background: 'var(--card-bg)',
+                            border: '1px solid var(--glass-border-hover)',
                             marginBottom: 'var(--space-4)'
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
@@ -435,11 +435,11 @@ const AptitudeTest = () => {
                                             key={rIdx}
                                             style={{
                                               fontSize: '10px',
-                                              padding: '2px 6px',
+                                              padding: '3px 8px',
                                               borderRadius: '4px',
-                                              background: 'rgba(108, 92, 231, 0.15)',
-                                              color: 'var(--primary-light)',
-                                              border: '1px solid rgba(162, 155, 254, 0.2)'
+                                              background: 'var(--glass-bg)',
+                                              color: 'var(--text-main)',
+                                              border: '1px solid var(--glass-border)'
                                             }}
                                           >
                                             {role}

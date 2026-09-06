@@ -219,12 +219,18 @@ const Messages = () => {
                     title="Start the conversation"
                     description="Send the first message for this counselling thread."
                   />
-                ) : messages.map((message) => (
-                  <div key={message.id} className={`message-bubble ${message.senderId === user?.id ? 'mine' : ''}`}>
-                    <p>{message.content}</p>
-                    <time>{formatTime(message.createdAt)}</time>
-                  </div>
-                ))}
+                ) : messages.map((message) => {
+                  const isMine = String(message.senderId) === String(user?.id);
+                  return (
+                    <div key={message.id} className={`message-bubble ${isMine ? 'mine sender' : 'theirs receiver'}`}>
+                      <span className="message-sender-tag">
+                        {isMine ? 'You' : (activePerson?.name || 'Counsellor')}
+                      </span>
+                      <p>{message.content}</p>
+                      <time>{formatTime(message.createdAt)}</time>
+                    </div>
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
 

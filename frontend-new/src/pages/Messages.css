@@ -30,7 +30,7 @@
 
 .conversation-item:hover,
 .conversation-item.active {
-  background: rgba(108, 92, 231, 0.14);
+  background: var(--glass-bg);
 }
 
 .conversation-copy {
@@ -71,27 +71,89 @@
 }
 
 .message-bubble {
-  max-width: min(68%, 620px);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.08);
+  max-width: min(72%, 580px);
+  padding: 12px 16px;
+  border-radius: 16px;
+  position: relative;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.message-sender-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* Receiver Message (Incoming / Left) */
+.message-bubble.theirs,
+.message-bubble:not(.mine) {
   align-self: flex-start;
+  background: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
-.message-bubble.mine {
-  align-self: flex-end;
-  background: linear-gradient(135deg, var(--primary-dark), var(--primary-light));
+.message-bubble.theirs .message-sender-tag,
+.message-bubble:not(.mine) .message-sender-tag {
+  color: var(--text-muted);
 }
 
-.message-bubble p {
-  margin: 0 0 var(--space-1);
+.message-bubble.theirs p,
+.message-bubble:not(.mine) p {
+  color: var(--text-main);
+  margin: 0 0 6px;
   line-height: 1.5;
-  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
 }
 
-.message-bubble time {
-  color: rgba(255, 255, 255, 0.68);
+.message-bubble.theirs time,
+.message-bubble:not(.mine) time {
+  color: var(--text-muted);
   font-size: var(--text-xs);
+  display: block;
+  text-align: left;
+}
+
+/* Sender Message (Outgoing / Right) */
+.message-bubble.mine,
+.message-bubble.sender {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--btn-text);
+  border: 1px solid transparent;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+
+.message-bubble.mine .message-sender-tag,
+.message-bubble.sender .message-sender-tag {
+  color: var(--btn-text);
+  opacity: 0.75;
+  text-align: right;
+}
+
+.message-bubble.mine p,
+.message-bubble.sender p {
+  color: var(--btn-text) !important;
+  margin: 0 0 6px;
+  line-height: 1.5;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.message-bubble.mine time,
+.message-bubble.sender time {
+  color: var(--btn-text);
+  opacity: 0.75;
+  font-size: var(--text-xs);
+  display: block;
+  text-align: right;
 }
 
 .typing-line {
@@ -112,7 +174,7 @@
 .message-input {
   width: 100%;
   color: var(--text-main);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
@@ -122,8 +184,8 @@
 }
 
 .message-input:focus {
-  border-color: var(--primary-light);
-  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.2);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .empty-chat {

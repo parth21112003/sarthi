@@ -9,8 +9,9 @@
 }
 
 .welcome-card {
-  background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(0, 206, 201, 0.1));
-  border-color: rgba(108, 92, 231, 0.3);
+  background: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -43,10 +44,11 @@
   align-items: center;
 }
 .stat-icon {
-  width: 40px; height: 40px;
+  width: 42px; height: 42px;
   border-radius: var(--radius-md);
-  background: rgba(108, 92, 231, 0.1);
-  color: var(--primary-light);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
   display: flex;
   align-items: center;
   justify-content: center;

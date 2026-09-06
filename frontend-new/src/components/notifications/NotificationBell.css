@@ -69,7 +69,8 @@
 }
 
 .notification-item.unread {
-  background: rgba(108, 92, 231, 0.14);
+  background: var(--glass-bg);
+  border-left: 3px solid var(--primary);
 }
 
 .notification-item span,

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Menu, X, LogOut } from 'lucide-react';
 import Button from '../common/Button';
 import Avatar from '../common/Avatar';
+import ThemeToggle from '../common/ThemeToggle';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -36,6 +37,7 @@ const Navbar = () => {
         </div>
 
         <div className="nav-actions desktop-only">
+          <ThemeToggle />
           {!isAuthenticated ? (
             <>
               <Link to="/login"><Button variant="ghost">Login</Button></Link>
@@ -66,6 +68,9 @@ const Navbar = () => {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="mobile-menu slideDown">
+          <div style={{ display: 'flex', justifyContent: 'flex-start', paddingBottom: '4px' }}>
+            <ThemeToggle />
+          </div>
           {!isAuthenticated ? (
             <>
               <Link to="/#features" className="nav-link" onClick={() => setMobileMenuOpen(false)}>Features</Link>

@@ -64,8 +64,9 @@
 }
 
 .answer-option:has(input:checked) {
-  border-color: var(--primary-light);
-  background: rgba(108, 92, 231, 0.16);
+  border-color: var(--primary);
+  background: var(--glass-border);
+  box-shadow: 0 0 0 1px var(--primary);
 }
 
 .result-card {

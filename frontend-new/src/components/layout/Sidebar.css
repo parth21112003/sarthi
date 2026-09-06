@@ -49,13 +49,14 @@
 
 .sidebar-link:hover {
   background: var(--glass-bg);
-  color: white;
+  color: var(--text-main);
 }
 
 .sidebar-link.active {
-  background: linear-gradient(90deg, rgba(108, 92, 231, 0.1), transparent);
-  color: var(--primary-light);
-  border-left-color: var(--primary-light);
+  background: var(--glass-bg);
+  color: var(--text-main);
+  border-left-color: var(--primary);
+  font-weight: 600;
 }
 
 .sidebar-footer {

@@ -93,8 +93,8 @@
 }
 
 .native-select:focus {
-  border-color: var(--primary-light);
-  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.2);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .slot-list,
@@ -200,8 +200,8 @@
 }
 
 .slot-btn:hover:not(:disabled) {
-  border-color: var(--primary-dark);
-  background: rgba(108, 92, 231, 0.15);
+  border-color: var(--primary);
+  background: var(--glass-bg);
 }
 
 .slot-btn-selected {

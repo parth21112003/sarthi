@@ -80,8 +80,8 @@ const CounselorDirectory = () => {
                   hover
                   className="entity-card"
                   style={{
-                    background: 'linear-gradient(145deg, rgba(108, 92, 231, 0.12), rgba(255, 255, 255, 0.03))',
-                    border: '1px solid rgba(162, 155, 254, 0.3)',
+                    background: 'var(--card-bg)',
+                    border: '1px solid var(--glass-border-hover)',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
