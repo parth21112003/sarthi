@@ -51,7 +51,6 @@ const VideoCall = () => {
   const [remoteStream, setRemoteStream] = useState(null);
   const [cameraError, setCameraError] = useState(null);
   const [isRinging, setIsRinging] = useState(false);
-  const [needsAutoplayUnlock, setNeedsAutoplayUnlock] = useState(false);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -273,10 +272,7 @@ const VideoCall = () => {
 
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStreamRef.current;
-        remoteVideoRef.current.play().catch((err) => {
-          console.warn('Autoplay waiting for user gesture:', err);
-          setNeedsAutoplayUnlock(true);
-        });
+        remoteVideoRef.current.play().catch(() => {});
       }
     };
 
@@ -321,7 +317,7 @@ const VideoCall = () => {
         setCallStatus('connected');
         if (remoteVideoRef.current && remoteStreamRef.current) {
           remoteVideoRef.current.srcObject = remoteStreamRef.current;
-          remoteVideoRef.current.play().catch(() => setNeedsAutoplayUnlock(true));
+          remoteVideoRef.current.play().catch(() => {});
         }
       } else if (state === 'disconnected') {
         setCallStatus('connecting');
@@ -378,16 +374,6 @@ const VideoCall = () => {
     createAndSendOffer(meetingData.roomId, { iceRestart: true });
     socket.emit('call:sync', { roomId: meetingData.roomId });
   }, [meetingData, socket, createAndSendOffer]);
-
-  // Mobile Autoplay unlocker
-  const handleUnlockAutoplay = () => {
-    if (remoteVideoRef.current && remoteStreamRef.current) {
-      remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      remoteVideoRef.current.play().then(() => {
-        setNeedsAutoplayUnlock(false);
-      }).catch((e) => console.warn('Unlock play error:', e));
-    }
-  };
 
   // Fetch meeting room & setup socket room
   useEffect(() => {
@@ -450,13 +436,31 @@ const VideoCall = () => {
   // Synchronize remote video element whenever remoteStream updates
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
-      if (remoteVideoRef.current.srcObject !== remoteStream) {
-        remoteVideoRef.current.srcObject = remoteStream;
+      const video = remoteVideoRef.current;
+      if (video.srcObject !== remoteStream) {
+        video.srcObject = remoteStream;
       }
-      remoteVideoRef.current.play().catch((err) => {
-        console.warn('Remote video autoplay note:', err);
-        setNeedsAutoplayUnlock(true);
-      });
+      
+      const playRemote = async () => {
+        try {
+          await video.play();
+        } catch (err) {
+          console.warn('Direct autoplay blocked, playing muted first:', err);
+          video.muted = true;
+          try {
+            await video.play();
+          } catch (mErr) {}
+          const unmute = () => {
+            video.muted = false;
+            window.removeEventListener('click', unmute);
+            window.removeEventListener('touchstart', unmute);
+          };
+          window.addEventListener('click', unmute, { once: true });
+          window.addEventListener('touchstart', unmute, { once: true });
+        }
+      };
+
+      playRemote();
     }
   }, [remoteStream, peerConnected]);
 
@@ -800,40 +804,6 @@ const VideoCall = () => {
               display: peerConnected ? 'block' : 'none',
             }}
           />
-
-          {/* Autoplay Unlock Banner for Mobile Browsers */}
-          {needsAutoplayUnlock && peerConnected && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'rgba(0, 0, 0, 0.75)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 20,
-              }}
-            >
-              <Volume2 size={40} color="#10b981" style={{ marginBottom: 12 }} />
-              <h4 style={{ color: '#fff', marginBottom: 8 }}>Tap to Enable Audio & Video</h4>
-              <button
-                onClick={handleUnlockAutoplay}
-                style={{
-                  padding: '10px 24px',
-                  borderRadius: '12px',
-                  background: '#10b981',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 600,
-                  fontSize: '1rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Start Watching
-              </button>
-            </div>
-          )}
 
           {/* Waiting & Connecting Display */}
           {!peerConnected && (
