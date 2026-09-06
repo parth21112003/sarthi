@@ -1,0 +1,13 @@
+{
+  "name": "sarthi",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --prefix backend-new\" \"npm run dev --prefix frontend-new\"",
+    "start": "concurrently -n backend,frontend -c blue,green \"npm start --prefix backend-new\" \"npm start --prefix frontend-new\"",
+    "install:all": "npm install && cd backend-new && npm install && cd ../frontend-new && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

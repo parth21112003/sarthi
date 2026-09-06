@@ -1,0 +1,271 @@
+// ==============================================================================
+// PRISMA SCHEMA DEFINITION (prisma/schema.prisma)
+// ==============================================================================
+// This file defines the database models, fields, relations, and indexes for the
+// Sarthi 2.0 application database (PostgreSQL).
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------------------
+// 1. USER MODEL (Students & Counselors)
+// ------------------------------------------------------------------------------
+/// Central User entity storing account credentials, role ('student' vs 'counselor'),
+/// profile attributes, counselor-specific metrics, and relational links.
+model User {
+  id              Int       @id @default(autoincrement()) // Auto-incrementing primary key
+  name            String                                  // Full name of user
+  email           String    @unique                       // Unique login email address
+  password        String                                  // Bcrypt hashed password string
+  role            String                                  // Role string: 'student' or 'counselor'
+  avatar          String?                                 // Optional avatar image URL
+  bio             String?                                 // Profile summary bio text
+  stream          String?                                 // Academic stream (e.g., 'Commerce', 'Science')
+  gender          String?                                 // Optional gender string
+  mobile          String?   @unique                       // Optional unique contact phone number
+  
+  // Counselor-specific fields
+  experience      Int?      @default(0)                   // Years of professional counseling experience
+  specialization  String?                                 // Area of expertise (e.g. 'Engineering', 'Psychology')
+  rating          Float     @default(0)                   // Average rating score (0.0 to 5.0)
+  totalRatings    Int       @default(0)                   // Total number of received student reviews
+  
+  // Session Security
+  refreshToken    String?                                 // Current active JWT refresh token string
+
+  // Relational mappings
+  sentMessages      Message[]          @relation("sender")
+  studentMeetings   Meeting[]          @relation("studentMeetings")
+  counselorMeetings Meeting[]          @relation("counselorMeetings")
+  ratingsReceived   Rating[]           @relation("ratedCounselor")
+  ratingsGiven      Rating[]           @relation("ratingStudent")
+  posts             Post[]
+  comments          Comment[]
+  notifications     Notification[]
+  aptitudeResults   AptitudeResult[]
+  availabilitySlots AvailabilitySlot[]
+  sessionNotes      SessionNote[]
+  chatParticipants  ChatParticipant[]
+  postLikes         PostLike[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ------------------------------------------------------------------------------
+// 2. MEETING MODEL (Counseling Sessions)
+// ------------------------------------------------------------------------------
+/// Session bookings between a student and a counselor.
+model Meeting {
+  id           Int      @id @default(autoincrement())
+  studentId    Int                                       // Foreign key to User (student)
+  counselorId  Int                                       // Foreign key to User (counselor)
+  date         String                                    // Meeting date string ("YYYY-MM-DD")
+  startTime    String                                    // Session start time ("HH:MM")
+  endTime      String                                    // Session end time ("HH:MM")
+  status       String   @default("pending")              // Lifecycle status: 'pending', 'accepted', 'rejected', 'completed', 'cancelled'
+  topic        String?                                   // Session discussion topic
+  notes        String?                                   // Additional notes from booking student
+  meetingLink  String?                                   // Video/Audio call link (if configured)
+  
+  // Relations
+  student      User     @relation("studentMeetings", fields: [studentId], references: [id])
+  counselor    User     @relation("counselorMeetings", fields: [counselorId], references: [id])
+  sessionNote  SessionNote?                              // Optional 1-to-1 session note link
+  rating       Rating?                                   // Optional 1-to-1 session rating
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ------------------------------------------------------------------------------
+// 3. CHAT & MESSAGING MODELS
+// ------------------------------------------------------------------------------
+/// Conversation thread between users.
+model Chat {
+  id           Int       @id @default(autoincrement())
+  lastMessage  String?                                   // Preview string of latest message
+  lastAt       DateTime?                                 // Timestamp of latest activity
+  
+  participants ChatParticipant[]
+  messages     Message[]
+  
+  createdAt    DateTime  @default(now())
+}
+
+/// Join table connecting Chat threads and User participants (Many-to-Many).
+model ChatParticipant {
+  id     Int  @id @default(autoincrement())
+  chatId Int                                          // Foreign key to Chat
+  userId Int                                          // Foreign key to User
+  
+  chat   Chat @relation(fields: [chatId], references: [id])
+  user   User @relation(fields: [userId], references: [id])
+  
+  @@unique([chatId, userId])                           // Ensures a user cannot be added twice to same chat
+}
+
+/// Individual chat message inside a Chat conversation thread.
+model Message {
+  id        Int      @id @default(autoincrement())
+  chatId    Int                                          // Foreign key to Chat
+  senderId  Int                                          // Foreign key to User (sender)
+  content   String                                       // Text message content
+  type      String   @default("text")                    // Message payload type ('text', 'image', 'file')
+  isRead    Boolean  @default(false)                     // Read status confirmation flag
+  
+  chat      Chat     @relation(fields: [chatId], references: [id])
+  sender    User     @relation("sender", fields: [senderId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------------------------------
+// 4. RATING MODEL (Student Reviews for Counselors)
+// ------------------------------------------------------------------------------
+/// Reviews and 1-5 star ratings submitted by students after completed sessions.
+model Rating {
+  id          Int      @id @default(autoincrement())
+  counselorId Int                                       // Foreign key to User (rated counselor)
+  studentId   Int                                       // Foreign key to User (reviewing student)
+  meetingId   Int?     @unique                          // Optional unique 1-to-1 link to Meeting
+  score       Int                                       // Rating integer from 1 to 5
+  review      String?                                   // Optional written review text
+  
+  counselor   User     @relation("ratedCounselor", fields: [counselorId], references: [id])
+  student     User     @relation("ratingStudent", fields: [studentId], references: [id])
+  meeting     Meeting? @relation(fields: [meetingId], references: [id])
+
+  createdAt   DateTime @default(now())
+}
+
+// ------------------------------------------------------------------------------
+// 5. COMMUNITY FORUM MODELS (Posts, Likes, Comments)
+// ------------------------------------------------------------------------------
+/// Community discussion thread post.
+model Post {
+  id        Int       @id @default(autoincrement())
+  userId    Int                                         // Foreign key to User (author)
+  title     String?                                     // Optional post title
+  content   String                                      // Body content of post
+  category  String?                                     // Optional category tag
+  likes     Int       @default(0)                       // Aggregate count of likes
+  
+  user      User      @relation(fields: [userId], references: [id])
+  comments  Comment[]
+  postLikes PostLike[]
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+/// Join table for tracking user likes on community posts.
+model PostLike {
+  id     Int  @id @default(autoincrement())
+  postId Int                                            // Foreign key to Post
+  userId Int                                            // Foreign key to User
+  
+  post   Post @relation(fields: [postId], references: [id])
+  user   User @relation(fields: [userId], references: [id])
+  
+  @@unique([postId, userId])                           // Prevents duplicate likes from same user
+}
+
+/// Comment on a community discussion post.
+model Comment {
+  id        Int      @id @default(autoincrement())
+  postId    Int                                         // Foreign key to Post
+  userId    Int                                         // Foreign key to User (commenter)
+  content   String                                      // Comment body text
+  
+  post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------------------------------
+// 6. AVAILABILITY SLOT MODEL
+// ------------------------------------------------------------------------------
+/// Counselor weekly availability schedule slot.
+model AvailabilitySlot {
+  id          Int      @id @default(autoincrement())
+  counselorId Int                                       // Foreign key to User (counselor)
+  dayOfWeek   Int                                       // Day integer: 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime   String                                    // Slot start time ("09:00")
+  endTime     String                                    // Slot end time ("10:00")
+  isActive    Boolean  @default(true)                   // Active slot indicator flag
+  
+  counselor   User     @relation(fields: [counselorId], references: [id])
+}
+
+// ------------------------------------------------------------------------------
+// 7. NOTIFICATION MODEL
+// ------------------------------------------------------------------------------
+/// In-app notification record for alerts and updates.
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int                                         // Foreign key to User (recipient)
+  title     String                                      // Notification title header
+  message   String                                      // Notification body message
+  type      String                                      // Type category ('meeting_request', 'meeting_response', 'new_message', 'rating', 'system')
+  isRead    Boolean  @default(false)                    // Read confirmation flag
+  link      String?                                     // Optional frontend route link
+  
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------------------------------
+// 8. APTITUDE RESULT MODEL
+// ------------------------------------------------------------------------------
+/// Student career assessment evaluation test result.
+model AptitudeResult {
+  id                   Int      @id @default(autoincrement())
+  userId               Int                              // Foreign key to User (student)
+  scores               String                           // JSON stringified scores (e.g., '{"logical":12,"verbal":8}')
+  streamRecommendation String?                          // Recommended career stream (e.g. 'Engineering', 'Law')
+  totalScore           Int                              // Aggregated overall score
+  
+  user                 User     @relation(fields: [userId], references: [id])
+  createdAt            DateTime @default(now())
+}
+
+// ------------------------------------------------------------------------------
+// 9. SESSION NOTE MODEL
+// ------------------------------------------------------------------------------
+/// Counselor post-meeting notes linked to a specific completed Meeting.
+model SessionNote {
+  id        Int      @id @default(autoincrement())
+  meetingId Int      @unique                          // Foreign key to Meeting (1-to-1 unique link)
+  authorId  Int                                       // Foreign key to User (authoring counselor)
+  content   String                                    // Note content body
+  
+  meeting   Meeting  @relation(fields: [meetingId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ------------------------------------------------------------------------------
+// 10. APTITUDE QUESTION MODEL (Dynamic Test Bank)
+// ------------------------------------------------------------------------------
+/// Bank of career assessment questions with multiple categories and options.
+model AptitudeQuestion {
+  id         Int      @id @default(autoincrement())
+  category   String                                 // Category: 'logical', 'verbal', 'quantitative', 'creative', 'social'
+  prompt     String                                 // The question text
+  options    Json                                   // Array of { id: string, text: string, score: number }
+  difficulty String   @default("medium")            // 'easy', 'medium', 'hard'
+  isActive   Boolean  @default(true)                // Whether the question is active in tests
+  createdAt  DateTime @default(now())
+}
