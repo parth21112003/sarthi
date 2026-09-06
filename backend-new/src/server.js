@@ -24,6 +24,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import http from 'http';
 import dotenv from 'dotenv';
+import { corsOptions } from './config/corsOptions.js';
 
 // Import WebSocket setup
 import { setupSocket } from './socket/index.js';
@@ -63,10 +64,7 @@ const server = http.createServer(app);
  * - Allows cross-origin requests from the React frontend (e.g., http://localhost:5173).
  * - `credentials: true` enables passing cookies (like httpOnly refresh token) across origins.
  */
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
-}));
+app.use(cors(corsOptions));
 
 /**
  * Body Parser Middleware:

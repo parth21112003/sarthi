@@ -17,6 +17,15 @@ import bcrypt from 'bcrypt';
 import prisma from '../config/prisma.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+
+const getRefreshTokenCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: isProduction ? 'none' : 'lax',
+  secure: isProduction,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
+
 /**
  * Register User Endpoint Controller
  * 
@@ -86,12 +95,7 @@ export const register = async (req, res, next) => {
     });
 
     // 6. Deliver refresh token in httpOnly cookie
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
-    });
+    res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
 
     // 7. Sanitize output object (omit password & refresh token)
     const { password: _, refreshToken: __, ...userData } = user;
@@ -141,12 +145,7 @@ export const login = async (req, res, next) => {
     });
 
     // 5. Set refresh cookie
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
 
     // 6. Respond with sanitized user data & access token
     const { password: _, refreshToken: __, ...userData } = user;
@@ -223,8 +222,8 @@ export const logout = async (req, res, next) => {
     // Remove HTTP cookie from client
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
     });
     res.json({ message: 'Logged out successfully' });
   } catch (error) {

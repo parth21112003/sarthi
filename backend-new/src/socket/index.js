@@ -19,6 +19,7 @@
 import { verifyAccessToken } from '../utils/jwt.js';
 import { Server } from 'socket.io';
 import prisma from '../config/prisma.js';
+import { isAllowedOrigin } from '../config/corsOptions.js';
 
 // Module-level reference to the initialized Socket.IO Server instance
 let ioInstance;
@@ -31,7 +32,13 @@ let ioInstance;
 export const setupSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: (origin, callback) => {
+        if (isAllowedOrigin(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Blocked by CORS'));
+        }
+      },
       methods: ['GET', 'POST'],
       credentials: true
     }
