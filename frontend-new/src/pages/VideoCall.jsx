@@ -12,7 +12,7 @@ import Button from '../components/common/Button';
 import Spinner from '../components/common/Spinner';
 import './Phase2.css';
 
-// Rock-solid STUN servers with NAT traversal pool
+// Rock-solid STUN + free TURN relay servers for cross-network (mobile data to Wi-Fi) NAT traversal
 const iceConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -21,6 +21,15 @@ const iceConfiguration = {
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -50,10 +59,8 @@ const VideoCall = () => {
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
 
-  // WebRTC Perfect Negotiation & Candidate Queue Refs
+  // WebRTC Candidate Queue & Negotiation Tracker
   const candidateQueue = useRef([]);
-  const makingOfferRef = useRef(false);
-  const ignoreOfferRef = useRef(false);
   const hasSignaledEntry = useRef(false);
 
   // Clean up media and peer connection
@@ -172,11 +179,6 @@ const VideoCall = () => {
     ? meetingData?.meeting?.student
     : meetingData?.meeting?.counselor;
 
-  // The peer with the lower numeric user ID is designated the "polite" peer
-  const isPolite = user?.id && otherPerson?.id
-    ? Number(user.id) < Number(otherPerson.id)
-    : user?.role === 'student';
-
   // Ring the opposing participant with high-visibility push notification
   const ringParticipant = useCallback((customMsg = null) => {
     if (!socket || !otherPerson?.id || !meetingData) return;
@@ -238,6 +240,7 @@ const VideoCall = () => {
 
     // Handle incoming remote media tracks (combines streams safely for mobile/desktop)
     pc.ontrack = (event) => {
+      console.log('Received remote track:', event.track.kind);
       if (!remoteStreamRef.current) {
         remoteStreamRef.current = new MediaStream();
       }
@@ -280,6 +283,7 @@ const VideoCall = () => {
     // Connection state listeners
     pc.oniceconnectionstatechange = () => {
       const state = pc.iceConnectionState;
+      console.log('ICE Connection state:', state);
       if (state === 'connected' || state === 'completed') {
         setPeerConnected(true);
         setCallStatus('connected');
@@ -293,6 +297,7 @@ const VideoCall = () => {
 
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
+      console.log('Peer Connection state:', state);
       if (state === 'connected') {
         setPeerConnected(true);
         setCallStatus('connected');
@@ -307,16 +312,29 @@ const VideoCall = () => {
     return pc;
   }, [socket]);
 
-  // Initiate WebRTC Offer (Perfect Negotiation pattern)
+  // Initiate WebRTC Offer (called ONLY by designated caller)
   const createAndSendOffer = useCallback(async (roomId, options = {}) => {
     if (!socket || !roomId) return;
     try {
       const pc = getOrCreatePeerConnection(roomId);
-      makingOfferRef.current = true;
       setCallStatus('connecting');
 
+      // Ensure local tracks are attached before creating offer
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          const sender = pc.getSenders().find((s) => s.track && s.track.kind === track.kind);
+          if (sender) {
+            sender.replaceTrack(track).catch(() => {});
+          } else {
+            try {
+              pc.addTrack(track, localStreamRef.current);
+            } catch (e) {}
+          }
+        });
+      }
+
+      console.log('Creating WebRTC offer (caller mode)...');
       const offer = await pc.createOffer(options);
-      if (pc.signalingState !== 'stable') return;
       await pc.setLocalDescription(offer);
 
       socket.emit('call:signal', {
@@ -325,8 +343,6 @@ const VideoCall = () => {
       });
     } catch (err) {
       console.error('Offer generation error:', err);
-    } finally {
-      makingOfferRef.current = false;
     }
   }, [socket, getOrCreatePeerConnection]);
 
@@ -335,8 +351,7 @@ const VideoCall = () => {
     if (!meetingData?.roomId || !socket) return;
     toast('Re-synchronizing video stream...');
     socket.emit('call:sync', { roomId: meetingData.roomId });
-    createAndSendOffer(meetingData.roomId, { iceRestart: true });
-  }, [meetingData, socket, createAndSendOffer]);
+  }, [meetingData, socket]);
 
   // Mobile Autoplay unlocker
   const handleUnlockAutoplay = () => {
@@ -386,7 +401,6 @@ const VideoCall = () => {
   useEffect(() => {
     if (meetingData && socket && otherPerson?.id && !hasSignaledEntry.current) {
       hasSignaledEntry.current = true;
-      // Delay slightly to let socket room subscribe
       const timer = setTimeout(() => {
         ringParticipant(`Notifying ${otherPerson.name || 'participant'} of call start...`);
       }, 1500);
@@ -415,29 +429,22 @@ const VideoCall = () => {
     // Room Status update (received upon joining)
     const handleRoomStatus = ({ participantCount }) => {
       setRoomParticipantCount(participantCount);
-      if (participantCount > 1) {
-        // If we are the second or later joiner, initiate offer if not polite
-        if (!isPolite) {
-          createAndSendOffer(roomId);
-        }
-      }
     };
 
     // Remote peer joined the room
     const handleUserJoined = () => {
       setRoomParticipantCount((prev) => Math.max(prev, 2));
       toast(`${otherPerson?.name || 'Participant'} joined the room`);
-      // When peer arrives, the caller / impolite peer initiates the offer
-      if (!isPolite) {
-        createAndSendOffer(roomId);
-      }
     };
 
-    // Both peers present: Synchronized negotiation trigger
-    const handleCallReady = () => {
+    // Both peers present: Server designates caller vs receiver deterministically
+    const handleCallReady = ({ isCaller, iceRestart }) => {
+      console.log('Room ready. Am I caller?', isCaller);
       setRoomParticipantCount((prev) => Math.max(prev, 2));
-      if (!isPolite) {
-        createAndSendOffer(roomId);
+      if (isCaller) {
+        createAndSendOffer(roomId, iceRestart ? { iceRestart: true } : {});
+      } else {
+        setCallStatus('connecting');
       }
     };
 
@@ -447,16 +454,21 @@ const VideoCall = () => {
 
       try {
         if (signal.type === 'offer') {
-          const offerCollision = makingOfferRef.current || pc.signalingState !== 'stable';
-          ignoreOfferRef.current = !isPolite && offerCollision;
+          console.log('Received WebRTC offer, generating answer...');
+          setCallStatus('connecting');
 
-          if (ignoreOfferRef.current) {
-            console.log('Glare detected: Impolite peer ignoring collision offer');
-            return;
-          }
-
-          if (offerCollision) {
-            await pc.setLocalDescription({ type: 'rollback' });
+          // Ensure local tracks are attached before answering
+          if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+              const sender = pc.getSenders().find((s) => s.track && s.track.kind === track.kind);
+              if (sender) {
+                sender.replaceTrack(track).catch(() => {});
+              } else {
+                try {
+                  pc.addTrack(track, localStreamRef.current);
+                } catch (e) {}
+              }
+            });
           }
 
           await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
@@ -470,18 +482,15 @@ const VideoCall = () => {
             signal: { type: 'answer', sdp: pc.localDescription },
           });
         } else if (signal.type === 'answer') {
-          if (pc.signalingState === 'have-local-offer') {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-            await drainCandidateQueue(pc);
-          }
+          console.log('Received WebRTC answer, finalizing remote description...');
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          await drainCandidateQueue(pc);
         } else if (signal.type === 'candidate' && signal.candidate) {
           if (pc.remoteDescription && pc.remoteDescription.type) {
             try {
               await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
             } catch (candErr) {
-              if (!ignoreOfferRef.current) {
-                console.warn('addIceCandidate error:', candErr);
-              }
+              console.warn('addIceCandidate error:', candErr);
             }
           } else {
             candidateQueue.current.push(signal.candidate);
@@ -489,14 +498,6 @@ const VideoCall = () => {
         }
       } catch (err) {
         console.error('Signaling processing error:', err);
-      }
-    };
-
-    // Remote peer requested re-sync
-    const handleSyncRequest = () => {
-      console.log('Sync request received from peer');
-      if (!isPolite) {
-        createAndSendOffer(roomId, { iceRestart: true });
       }
     };
 
@@ -522,7 +523,6 @@ const VideoCall = () => {
     socket.on('call:user-joined', handleUserJoined);
     socket.on('call:ready', handleCallReady);
     socket.on('call:signal', handleSignal);
-    socket.on('call:sync-request', handleSyncRequest);
     socket.on('call:accepted', handleCallAccepted);
     socket.on('call:rejected', handleCallRejected);
     socket.on('call:ended', handleCallEnded);
@@ -532,7 +532,6 @@ const VideoCall = () => {
       socket.off('call:user-joined', handleUserJoined);
       socket.off('call:ready', handleCallReady);
       socket.off('call:signal', handleSignal);
-      socket.off('call:sync-request', handleSyncRequest);
       socket.off('call:accepted', handleCallAccepted);
       socket.off('call:rejected', handleCallRejected);
       socket.off('call:ended', handleCallEnded);
@@ -540,7 +539,6 @@ const VideoCall = () => {
   }, [
     socket, 
     meetingData, 
-    isPolite, 
     otherPerson, 
     getOrCreatePeerConnection, 
     createAndSendOffer, 
@@ -779,7 +777,7 @@ const VideoCall = () => {
             </div>
           )}
 
-          {/* Waiting & Ringing Display */}
+          {/* Waiting & Connecting Display */}
           {!peerConnected && (
             <div style={{ textAlign: 'center', padding: 'var(--space-6)', maxWidth: 440 }}>
               <div

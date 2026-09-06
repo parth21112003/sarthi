@@ -247,12 +247,27 @@ export const setupSocket = (server) => {
         participantCount,
       });
 
-      // When 2 or more participants are present, broadcast call:ready
+      // When 2 or more participants are present, designate caller and receiver deterministically
       if (participantCount >= 2) {
-        io.to(`call:${roomId}`).emit('call:ready', {
+        const socketIds = Array.from(room || []).sort();
+        const callerSocketId = socketIds[0];
+        const receiverSocketId = socketIds[1];
+
+        // Caller initiates the offer
+        io.to(callerSocketId).emit('call:ready', {
           roomId,
+          isCaller: true,
           participantCount,
         });
+
+        // Receiver waits for offer to answer
+        if (receiverSocketId) {
+          io.to(receiverSocketId).emit('call:ready', {
+            roomId,
+            isCaller: false,
+            participantCount,
+          });
+        }
       }
     });
 
@@ -264,6 +279,7 @@ export const setupSocket = (server) => {
       socket.to(`call:${roomId}`).emit('call:signal', {
         signal,
         senderId: socket.user.id,
+        senderSocketId: socket.id,
       });
     });
 
@@ -272,9 +288,19 @@ export const setupSocket = (server) => {
      * Re-negotiation trigger when a peer requests connection resync.
      */
     socket.on('call:sync', ({ roomId }) => {
-      socket.to(`call:${roomId}`).emit('call:sync-request', {
-        senderId: socket.user.id,
-      });
+      const room = io.sockets.adapter.rooms.get(`call:${roomId}`);
+      const socketIds = Array.from(room || []).sort();
+      if (socketIds.length >= 2) {
+        io.to(socketIds[0]).emit('call:ready', {
+          roomId,
+          isCaller: true,
+          iceRestart: true,
+        });
+        io.to(socketIds[1]).emit('call:ready', {
+          roomId,
+          isCaller: false,
+        });
+      }
     });
 
     /**
