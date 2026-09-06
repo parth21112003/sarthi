@@ -12,7 +12,7 @@ import Button from '../components/common/Button';
 import Spinner from '../components/common/Spinner';
 import './Phase2.css';
 
-// Rock-solid STUN + free TURN relay servers for cross-network (mobile data to Wi-Fi) NAT traversal
+// Public STUN and OpenRelay TURN configuration for reliable mobile-to-desktop NAT traversal
 const iceConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -59,7 +59,7 @@ const VideoCall = () => {
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
 
-  // WebRTC Candidate Queue & Negotiation Tracker
+  // WebRTC Candidate Queue & Negotiation Trackers
   const candidateQueue = useRef([]);
   const hasSignaledEntry = useRef(false);
 
@@ -91,7 +91,7 @@ const VideoCall = () => {
         return null;
       }
 
-      // Enumerate devices to pick a true RGB webcam (filtering out Windows Hello IR sensors)
+      // Pick true RGB camera if available
       let preferredDeviceId = null;
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -200,7 +200,12 @@ const VideoCall = () => {
     while (candidateQueue.current.length > 0) {
       const candidate = candidateQueue.current.shift();
       try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        const candInit = typeof candidate === 'object' && candidate !== null
+          ? candidate
+          : { candidate };
+        if (candInit.candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(candInit));
+        }
       } catch (err) {
         console.warn('ICE candidate drain notice:', err);
       }
@@ -208,7 +213,12 @@ const VideoCall = () => {
   }, []);
 
   // Create or return active PeerConnection
-  const getOrCreatePeerConnection = useCallback((roomId) => {
+  const getOrCreatePeerConnection = useCallback((roomId, forceRecreate = false) => {
+    if (forceRecreate && pcRef.current) {
+      try { pcRef.current.close(); } catch (e) {}
+      pcRef.current = null;
+    }
+
     if (pcRef.current && pcRef.current.signalingState !== 'closed') {
       return pcRef.current;
     }
@@ -216,7 +226,7 @@ const VideoCall = () => {
     const pc = new RTCPeerConnection(iceConfiguration);
     pcRef.current = pc;
 
-    // Pre-add transceivers so SDP negotiation prepares both audio and video m-lines immediately
+    // Pre-add transceivers so SDP negotiation prepares both audio and video m-lines
     try {
       pc.addTransceiver('audio', { direction: 'sendrecv' });
       pc.addTransceiver('video', { direction: 'sendrecv' });
@@ -238,9 +248,9 @@ const VideoCall = () => {
       });
     }
 
-    // Handle incoming remote media tracks (combines streams safely for mobile/desktop)
+    // Handle incoming remote media tracks
     pc.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
+      console.log('WebRTC ontrack event:', event.track.kind);
       if (!remoteStreamRef.current) {
         remoteStreamRef.current = new MediaStream();
       }
@@ -270,12 +280,20 @@ const VideoCall = () => {
       }
     };
 
-    // Forward ICE candidates to remote peer
+    // Forward ICE candidates with explicit JSON serialization
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
+        const candidatePayload = event.candidate.toJSON
+          ? event.candidate.toJSON()
+          : {
+              candidate: event.candidate.candidate,
+              sdpMid: event.candidate.sdpMid,
+              sdpMLineIndex: event.candidate.sdpMLineIndex,
+            };
+
         socket.emit('call:signal', {
           roomId,
-          signal: { type: 'candidate', candidate: event.candidate },
+          signal: { type: 'candidate', candidate: candidatePayload },
         });
       }
     };
@@ -288,7 +306,7 @@ const VideoCall = () => {
         setPeerConnected(true);
         setCallStatus('connected');
       } else if (state === 'failed') {
-        console.warn('ICE connection failed, attempting restart...');
+        console.warn('ICE connection failed, restarting ICE...');
         if (pc.restartIce) {
           pc.restartIce();
         }
@@ -301,6 +319,10 @@ const VideoCall = () => {
       if (state === 'connected') {
         setPeerConnected(true);
         setCallStatus('connected');
+        if (remoteVideoRef.current && remoteStreamRef.current) {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          remoteVideoRef.current.play().catch(() => setNeedsAutoplayUnlock(true));
+        }
       } else if (state === 'disconnected') {
         setCallStatus('connecting');
       } else if (state === 'failed') {
@@ -312,7 +334,7 @@ const VideoCall = () => {
     return pc;
   }, [socket]);
 
-  // Initiate WebRTC Offer (called ONLY by designated caller)
+  // Initiate WebRTC Offer with clean string SDP serialization
   const createAndSendOffer = useCallback(async (roomId, options = {}) => {
     if (!socket || !roomId) return;
     try {
@@ -333,13 +355,16 @@ const VideoCall = () => {
         });
       }
 
-      console.log('Creating WebRTC offer (caller mode)...');
+      console.log('Generating WebRTC offer...');
       const offer = await pc.createOffer(options);
       await pc.setLocalDescription(offer);
 
       socket.emit('call:signal', {
         roomId,
-        signal: { type: 'offer', sdp: pc.localDescription },
+        signal: {
+          type: pc.localDescription.type || 'offer',
+          sdp: pc.localDescription.sdp,
+        },
       });
     } catch (err) {
       console.error('Offer generation error:', err);
@@ -350,8 +375,9 @@ const VideoCall = () => {
   const handleResyncConnection = useCallback(() => {
     if (!meetingData?.roomId || !socket) return;
     toast('Re-synchronizing video stream...');
+    createAndSendOffer(meetingData.roomId, { iceRestart: true });
     socket.emit('call:sync', { roomId: meetingData.roomId });
-  }, [meetingData, socket]);
+  }, [meetingData, socket, createAndSendOffer]);
 
   // Mobile Autoplay unlocker
   const handleUnlockAutoplay = () => {
@@ -421,6 +447,19 @@ const VideoCall = () => {
     }
   }, [localStream, isVideoOff]);
 
+  // Synchronize remote video element whenever remoteStream updates
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      if (remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+      remoteVideoRef.current.play().catch((err) => {
+        console.warn('Remote video autoplay note:', err);
+        setNeedsAutoplayUnlock(true);
+      });
+    }
+  }, [remoteStream, peerConnected]);
+
   // Socket Signaling Event Listeners
   useEffect(() => {
     if (!socket || !meetingData?.roomId) return;
@@ -429,19 +468,25 @@ const VideoCall = () => {
     // Room Status update (received upon joining)
     const handleRoomStatus = ({ participantCount }) => {
       setRoomParticipantCount(participantCount);
+      // If we joined an already active room, signal readiness
+      if (participantCount > 1) {
+        setCallStatus('connecting');
+      }
     };
 
-    // Remote peer joined the room
+    // Remote peer joined the room: The waiting peer initiates the call offer
     const handleUserJoined = () => {
       setRoomParticipantCount((prev) => Math.max(prev, 2));
       toast(`${otherPerson?.name || 'Participant'} joined the room`);
+      console.log('Peer joined! Initiating WebRTC offer as room host...');
+      createAndSendOffer(roomId);
     };
 
-    // Both peers present: Server designates caller vs receiver deterministically
-    const handleCallReady = ({ isCaller, iceRestart }) => {
-      console.log('Room ready. Am I caller?', isCaller);
+    // Server-coordinated ready event
+    const handleCallReady = ({ isCaller, iceRestart } = {}) => {
       setRoomParticipantCount((prev) => Math.max(prev, 2));
-      if (isCaller) {
+      console.log('call:ready received. isCaller =', isCaller);
+      if (isCaller === true) {
         createAndSendOffer(roomId, iceRestart ? { iceRestart: true } : {});
       } else {
         setCallStatus('connecting');
@@ -471,7 +516,13 @@ const VideoCall = () => {
             });
           }
 
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          const rawSdp = typeof signal.sdp === 'string' ? signal.sdp : (signal.sdp?.sdp || '');
+          const desc = new RTCSessionDescription({
+            type: 'offer',
+            sdp: rawSdp,
+          });
+
+          await pc.setRemoteDescription(desc);
           await drainCandidateQueue(pc);
 
           const answer = await pc.createAnswer();
@@ -479,21 +530,36 @@ const VideoCall = () => {
 
           socket.emit('call:signal', {
             roomId,
-            signal: { type: 'answer', sdp: pc.localDescription },
+            signal: {
+              type: pc.localDescription.type || 'answer',
+              sdp: pc.localDescription.sdp,
+            },
           });
         } else if (signal.type === 'answer') {
-          console.log('Received WebRTC answer, finalizing remote description...');
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          console.log('Received WebRTC answer, applying to remote description...');
+          const rawSdp = typeof signal.sdp === 'string' ? signal.sdp : (signal.sdp?.sdp || '');
+          const desc = new RTCSessionDescription({
+            type: 'answer',
+            sdp: rawSdp,
+          });
+
+          await pc.setRemoteDescription(desc);
           await drainCandidateQueue(pc);
         } else if (signal.type === 'candidate' && signal.candidate) {
+          const candPayload = typeof signal.candidate === 'object' && signal.candidate !== null
+            ? signal.candidate
+            : { candidate: signal.candidate };
+
           if (pc.remoteDescription && pc.remoteDescription.type) {
             try {
-              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+              if (candPayload.candidate) {
+                await pc.addIceCandidate(new RTCIceCandidate(candPayload));
+              }
             } catch (candErr) {
               console.warn('addIceCandidate error:', candErr);
             }
           } else {
-            candidateQueue.current.push(signal.candidate);
+            candidateQueue.current.push(candPayload);
           }
         }
       } catch (err) {
@@ -724,15 +790,7 @@ const VideoCall = () => {
           }}
         >
           <video
-            ref={(node) => {
-              remoteVideoRef.current = node;
-              if (node && remoteStreamRef.current) {
-                if (node.srcObject !== remoteStreamRef.current) {
-                  node.srcObject = remoteStreamRef.current;
-                }
-                node.play().catch(() => setNeedsAutoplayUnlock(true));
-              }
-            }}
+            ref={remoteVideoRef}
             autoPlay
             playsInline
             style={{
