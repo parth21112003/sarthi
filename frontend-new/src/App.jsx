@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import AppRoutes from './AppRoutes';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import IncomingCallModal from './components/call/IncomingCallModal';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <BrowserRouter>
           <AuthProvider>
             <SocketProvider>
+              <IncomingCallModal />
               <Toaster position="top-right" toastOptions={{
                 style: {
                   background: 'var(--bg-dark)',

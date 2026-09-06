@@ -165,14 +165,36 @@ export const setupSocket = (server) => {
 
     /**
      * `call:initiate` Event:
-     * Caller rings the target user with meetingRoomId and caller credentials.
+     * Rings target user with caller identity, meeting details, and room link.
      */
-    socket.on('call:initiate', ({ targetUserId, roomId, callerName }) => {
-      io.to(`user:${targetUserId}`).emit('call:incoming', {
+    socket.on('call:initiate', async ({ targetUserId, roomId, meetingId, topic, callerName, callerRole }) => {
+      const callData = {
         callerId: socket.user.id,
-        callerName: callerName || socket.user.email,
+        callerName: callerName || socket.user.name || socket.user.email,
+        callerRole: callerRole || socket.user.role || 'user',
         roomId,
-      });
+        meetingId: meetingId || roomId,
+        topic: topic || 'Career Consultation Session',
+      };
+
+      // Real-time ring event to target user's personal room
+      io.to(`user:${targetUserId}`).emit('call:incoming', callData);
+
+      // Create in-app notification record
+      try {
+        const notif = await prisma.notification.create({
+          data: {
+            userId: Number(targetUserId),
+            title: 'Incoming Video Call',
+            message: `${callData.callerName} is video calling you for: ${callData.topic}.`,
+            type: 'meeting_request',
+            link: `/call/${callData.meetingId}`,
+          },
+        });
+        io.to(`user:${targetUserId}`).emit('notification:new', notif);
+      } catch (err) {
+        console.warn('Call notification save notice:', err.message);
+      }
     });
 
     /**
@@ -183,6 +205,9 @@ export const setupSocket = (server) => {
       socket.join(`call:${roomId}`);
       io.to(`user:${callerId}`).emit('call:accepted', {
         receiverId: socket.user.id,
+        roomId,
+      });
+      io.to(`call:${roomId}`).emit('call:ready', {
         roomId,
       });
     });
@@ -200,13 +225,35 @@ export const setupSocket = (server) => {
 
     /**
      * `call:join-room` Event:
-     * Joins WebRTC room and announces presence to existing peer.
+     * Joins WebRTC room, tracks participant count, and synchronizes presence.
      */
     socket.on('call:join-room', ({ roomId }) => {
       socket.join(`call:${roomId}`);
+
+      const room = io.sockets.adapter.rooms.get(`call:${roomId}`);
+      const participantCount = room ? room.size : 1;
+
+      // Notify the joining user how many peers are already in the room
+      socket.emit('call:room-status', {
+        roomId,
+        participantCount,
+        isFirst: participantCount === 1,
+      });
+
+      // Announce arrival to any peer already in the room
       socket.to(`call:${roomId}`).emit('call:user-joined', {
         userId: socket.user.id,
+        socketId: socket.id,
+        participantCount,
       });
+
+      // When 2 or more participants are present, broadcast call:ready
+      if (participantCount >= 2) {
+        io.to(`call:${roomId}`).emit('call:ready', {
+          roomId,
+          participantCount,
+        });
+      }
     });
 
     /**
@@ -216,6 +263,16 @@ export const setupSocket = (server) => {
     socket.on('call:signal', ({ roomId, signal }) => {
       socket.to(`call:${roomId}`).emit('call:signal', {
         signal,
+        senderId: socket.user.id,
+      });
+    });
+
+    /**
+     * `call:sync` Event:
+     * Re-negotiation trigger when a peer requests connection resync.
+     */
+    socket.on('call:sync', ({ roomId }) => {
+      socket.to(`call:${roomId}`).emit('call:sync-request', {
         senderId: socket.user.id,
       });
     });

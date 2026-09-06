@@ -33,8 +33,15 @@ export const SocketProvider = ({ children }) => {
     });
 
     // WebRTC Signaling: Incoming Call
-    nextSocket.on('call:incoming', ({ callerId, callerName, roomId }) => {
-      setIncomingCall({ callerId, callerName, roomId });
+    nextSocket.on('call:incoming', ({ callerId, callerName, callerRole, roomId, meetingId, topic }) => {
+      setIncomingCall({
+        callerId,
+        callerName,
+        callerRole,
+        roomId,
+        meetingId: meetingId || roomId,
+        topic: topic || 'Career Consultation Session',
+      });
     });
 
     nextSocket.on('call:rejected', () => {
@@ -56,29 +63,55 @@ export const SocketProvider = ({ children }) => {
   }, [accessToken, isAuthenticated]);
 
   // Initiate call
-  const startCall = useCallback((targetUserId, roomId) => {
-    if (!socket || !targetUserId || !roomId) return;
+  const startCall = useCallback((options, legacyRoomId) => {
+    if (!socket) return;
+
+    let targetUserId;
+    let roomId;
+    let meetingId;
+    let topic;
+
+    if (typeof options === 'object' && options !== null) {
+      targetUserId = options.targetUserId;
+      roomId = options.roomId;
+      meetingId = options.meetingId;
+      topic = options.topic;
+    } else {
+      targetUserId = options;
+      roomId = legacyRoomId;
+      meetingId = legacyRoomId;
+    }
+
+    if (!targetUserId || !roomId) return;
+
     socket.emit('call:initiate', {
       targetUserId,
       roomId,
+      meetingId: meetingId || roomId,
+      topic: topic || 'Career Consultation Session',
       callerName: user?.name || user?.email,
+      callerRole: user?.role,
     });
-    setActiveCall({ roomId, remoteUserId: targetUserId, isInitiator: true });
+
+    setActiveCall({ roomId, meetingId: meetingId || roomId, remoteUserId: targetUserId, isInitiator: true });
   }, [socket, user]);
 
   // Accept incoming call
   const answerCall = useCallback(() => {
-    if (!socket || !incomingCall) return;
+    if (!socket || !incomingCall) return null;
+    const acceptedCall = { ...incomingCall };
     socket.emit('call:accept', {
-      callerId: incomingCall.callerId,
-      roomId: incomingCall.roomId,
+      callerId: acceptedCall.callerId,
+      roomId: acceptedCall.roomId,
     });
     setActiveCall({
-      roomId: incomingCall.roomId,
-      remoteUserId: incomingCall.callerId,
+      roomId: acceptedCall.roomId,
+      meetingId: acceptedCall.meetingId,
+      remoteUserId: acceptedCall.callerId,
       isInitiator: false,
     });
     setIncomingCall(null);
+    return acceptedCall;
   }, [socket, incomingCall]);
 
   // Reject incoming call
@@ -90,6 +123,11 @@ export const SocketProvider = ({ children }) => {
     });
     setIncomingCall(null);
   }, [socket, incomingCall]);
+
+  // Clear incoming call manually (e.g. after timeout)
+  const clearIncomingCall = useCallback(() => {
+    setIncomingCall(null);
+  }, []);
 
   // End active call
   const hangupCall = useCallback((roomId) => {
@@ -110,8 +148,9 @@ export const SocketProvider = ({ children }) => {
     startCall,
     answerCall,
     declineCall,
+    clearIncomingCall,
     hangupCall,
-  }), [socket, onlineUsers, incomingCall, activeCall, startCall, answerCall, declineCall, hangupCall]);
+  }), [socket, onlineUsers, incomingCall, activeCall, startCall, answerCall, declineCall, clearIncomingCall, hangupCall]);
 
   return (
     <SocketContext.Provider value={value}>
