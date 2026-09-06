@@ -60,6 +60,7 @@ Thumbs.db
 coverage/
 .nyc_output/
 
-# Progress Reports & Internal Notes
+# Progress Reports, Internal Notes & Docs
 progress-reports/
 progress-report/
+docs/
