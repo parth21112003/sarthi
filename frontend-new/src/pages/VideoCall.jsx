@@ -33,6 +33,8 @@ const VideoCall = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [peerConnected, setPeerConnected] = useState(false);
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -45,6 +47,8 @@ const VideoCall = () => {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
+    setLocalStream(null);
+    setRemoteStream(null);
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
@@ -64,16 +68,30 @@ const VideoCall = () => {
         // Get user camera & microphone
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'user',
+            },
             audio: true,
           });
           if (!isMounted) return;
           localStreamRef.current = stream;
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-          }
+          setLocalStream(stream);
         } catch (mediaErr) {
-          toast.error('Unable to access camera or microphone. Please check browser permissions.');
+          console.warn('HD camera failed, falling back to default:', mediaErr);
+          try {
+            const fallbackStream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: true,
+            });
+            if (!isMounted) return;
+            localStreamRef.current = fallbackStream;
+            setLocalStream(fallbackStream);
+          } catch (fallbackErr) {
+            console.error('Camera/mic access error:', fallbackErr);
+            toast.error('Unable to access camera or microphone. Please check browser permissions.');
+          }
         }
 
         // Join room in socket
@@ -97,6 +115,19 @@ const VideoCall = () => {
     };
   }, [meetingId, socket, navigate, user, cleanup]);
 
+  // Synchronize local video element whenever stream is acquired or component finishes loading
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      if (localVideoRef.current.srcObject !== localStream) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      localVideoRef.current.muted = true;
+      localVideoRef.current.play().catch((err) => {
+        console.warn('Local video auto-play warning:', err);
+      });
+    }
+  }, [localStream, loading, isVideoOff]);
+
   // Create PeerConnection instance
   const createPeerConnection = useCallback((roomId) => {
     if (pcRef.current) return pcRef.current;
@@ -112,8 +143,13 @@ const VideoCall = () => {
 
     // Handle remote tracks
     pc.ontrack = (event) => {
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
+      if (event.streams && event.streams[0]) {
+        const stream = event.streams[0];
+        setRemoteStream(stream);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.play().catch(() => {});
+        }
         setPeerConnected(true);
         setCallStatus('connected');
       }
@@ -346,7 +382,15 @@ const VideoCall = () => {
           }}
         >
           <video
-            ref={remoteVideoRef}
+            ref={(node) => {
+              remoteVideoRef.current = node;
+              if (node && remoteStream) {
+                if (node.srcObject !== remoteStream) {
+                  node.srcObject = remoteStream;
+                }
+                node.play().catch(() => {});
+              }
+            }}
             autoPlay
             playsInline
             style={{
@@ -399,7 +443,16 @@ const VideoCall = () => {
             }}
           >
             <video
-              ref={localVideoRef}
+              ref={(node) => {
+                localVideoRef.current = node;
+                if (node && localStreamRef.current) {
+                  if (node.srcObject !== localStreamRef.current) {
+                    node.srcObject = localStreamRef.current;
+                  }
+                  node.muted = true;
+                  node.play().catch(() => {});
+                }
+              }}
               autoPlay
               playsInline
               muted

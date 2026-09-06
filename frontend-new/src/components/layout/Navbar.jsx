@@ -43,9 +43,9 @@ const Navbar = () => {
             </>
           ) : (
             <div className="user-menu">
-              <Link to={`/${user?.role}/profile`} className="user-profile-link">
-                <Avatar name={user?.name} size="sm" isOnline={true} />
-                <span className="user-name">{user?.name}</span>
+              <Link to={`/${user?.role || 'student'}/profile`} className="user-profile-link" title="View Profile">
+                <Avatar name={user?.name || user?.email} size="sm" isOnline={true} />
+                <span className="user-name">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
               </Link>
               <button className="logout-btn" onClick={handleLogout} title="Logout">
                 <LogOut size={18} />

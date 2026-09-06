@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { Menu } from 'lucide-react';
 import Avatar from '../common/Avatar';
@@ -26,7 +27,13 @@ const DashboardLayout = ({ children, title }) => {
           
           <div className="header-right">
             <NotificationBell />
-            <Avatar name={user?.name} size="sm" isOnline={true} />
+            <Link to={`/${user?.role || 'student'}/profile`} className="header-user-profile" title="View Profile">
+              <Avatar name={user?.name || user?.email} size="sm" isOnline={true} />
+              <div className="header-user-info">
+                <span className="header-user-name">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
+                <span className="header-user-role">{user?.role || 'Student'}</span>
+              </div>
+            </Link>
           </div>
         </header>
 
